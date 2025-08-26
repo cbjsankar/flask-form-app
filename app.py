@@ -8,13 +8,13 @@ app = Flask(__name__)
 
 # Google Sheets Setup
 
-credentials_info = json.loads(os.environ['GOOGLE_SHEETS_JSON'])
-
+SERVICE_ACCOUNT_FILE = 'credentials.json'  # update path if needed
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = '17JO6P0OkcEIH4RCCQLjcNqYsuetw5f0kAfITko629Rc'
 SHEET_NAME = 'Sheet1'
 
-creds = service_account.Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
+creds = service_account.Credentials.from_service_account_file(
+    SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 service = build('sheets', 'v4', credentials=creds)
 sheet = service.spreadsheets()
 
