@@ -7,16 +7,23 @@ from email.mime.text import MIMEText
 app = Flask(__name__)
 
 # ---------------- GOOGLE SHEETS ---------------- #
-scope = ["https://spreadsheets.google.com/feeds",
-         "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
+          "https://www.googleapis.com/auth/drive"]
+
+# Load credentials from Docker secret file
+with open('/run/secrets/google_sheets_json.json') as f:
+    credentials_info = json.load(f)
+
+creds = service_account.Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
 client = gspread.authorize(creds)
+
+# Open Google Sheet
 sheet = client.open_by_url(
     "https://docs.google.com/spreadsheets/d/17JO6P0OkcEIH4RCCQLjcNqYsuetw5f0kAfITko629Rc/edit#gid=0"
 ).sheet1
 
 def get_all_users():
-    return sheet.get_all_values()[1:]  # skip header
+    return sheet.get_all_values()[1:]
 
 # ---------------- EMAIL FUNCTION ---------------- #
 def send_email(to_email, data):
