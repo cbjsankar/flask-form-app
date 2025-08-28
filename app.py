@@ -1,139 +1,138 @@
-import os
-import json
-from flask import Flask, request, render_template, jsonify
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
+from flask import Flask, render_template, request, jsonify
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import smtplib
+from email.mime.text import MIMEText
 
 app = Flask(__name__)
 
-# Google Sheets Setup
+# ---------------- GOOGLE SHEETS ---------------- #
+scope = ["https://spreadsheets.google.com/feeds",
+         "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+client = gspread.authorize(creds)
+sheet = client.open_by_url(
+    "https://docs.google.com/spreadsheets/d/17JO6P0OkcEIH4RCCQLjcNqYsuetw5f0kAfITko629Rc/edit#gid=0"
+).sheet1
 
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SPREADSHEET_ID = '17JO6P0OkcEIH4RCCQLjcNqYsuetw5f0kAfITko629Rc'
-SHEET_NAME = 'Sheet1'
-
-with open('/etc/secrets/google_sheets_json.json') as f:
-    credentials_info = json.load(f)
-
-creds = service_account.Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
-
-service = build('sheets', 'v4', credentials=creds)
-sheet = service.spreadsheets()
-
-
-# Columns:
-# A: Email | B: MobileCode | C: MobileNumber | D: WhatsAppCode | E: WhatsAppNumber |
-# F: First Name | G: Last Name | H: Family Members | I: Event Fee | J: Membership Fee | K: Donation Fee
-
-# Fetch all users
 def get_all_users():
-    result = sheet.values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{SHEET_NAME}!A2:K"
-    ).execute()
-    return result.get('values', [])
+    return sheet.get_all_values()[1:]  # skip header
 
-# Find a user by email, mobile, or WhatsApp
-def find_user(email=None, mobile=None, whatsapp=None):
-    users = get_all_users()
-    for user in users:
-        # Ensure correct length check before indexing
-        if len(user) < 11:
-            continue
-        if (email and user[0] == email) \
-           or (mobile and (user[1] + user[2]) == mobile) \
-           or (whatsapp and (user[3] + user[4]) == whatsapp):
-            return {
-                'email': user[0],
-                'mobile_code': user[1],
-                'mobile_number': user[2],
-                'whatsapp_code': user[3],
-                'whatsapp_number': user[4],
-                'first_name': user[5],
-                'last_name': user[6],
-                'family_members': user[7],
-                'event_fee': user[8],
-                'membership_fee': user[9],
-                'donation_fee': user[10],
-            }
-    return None
+# ---------------- EMAIL FUNCTION ---------------- #
+def send_email(to_email, data):
+    from_email = "kairalisyr@gmail.com"
+    app_password = "owgg dgjq phip ekwx"  # Replace with Gmail app password
 
-# Register or update user
-def register_user(email, mobile_code, mobile_number, whatsapp_code,
-                  whatsapp_number, first_name, last_name,
-                  family_members, event_fee, membership_fee, donation_fee):
+    subject = "Kairali Onam 2025 - Event Registration Confirmation"
+    body = f"""
+    Dear {data['first_name']} {data['last_name']},
 
-    users = get_all_users()
-    row_index = None
-    for i, user in enumerate(users):
-        if (len(user) > 0 and user[0] == email) \
-           or (len(user) > 2 and (user[1], user[2]) == (mobile_code, mobile_number)) \
-           or (len(user) > 4 and (user[3], user[4]) == (whatsapp_code, whatsapp_number)):
-            row_index = i + 2  # header offset
-            break
+    Thank you for registering with us! Here are your submitted details:
 
-    if row_index:
-        # Update existing
-        sheet.values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"{SHEET_NAME}!A{row_index}:K{row_index}",
-            valueInputOption="RAW",
-            body={"values": [[email, mobile_code, mobile_number,
-                              whatsapp_code, whatsapp_number,
-                              first_name, last_name, family_members,
-                              event_fee, membership_fee, donation_fee]]}
-        ).execute()
-        return "Registration updated"
-    else:
-        # Append new
-        sheet.values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=f"{SHEET_NAME}!A:K",
-            valueInputOption="RAW",
-            body={"values": [[email, mobile_code, mobile_number,
-                              whatsapp_code, whatsapp_number,
-                              first_name, last_name, family_members,
-                              event_fee, membership_fee, donation_fee]]}
-        ).execute()
-        return "Registration updated"
+    Name: {data['first_name']} {data['last_name']}
+    Email: {data['email']}
+    Mobile: {data['mobile_code']} {data['mobile_number']}
+    WhatsApp: {data['whatsapp_code']} {data['whatsapp_number']}
+    Family Members: {data['family_members']}
+    Event Fee: {data['event_fee']}
+    Membership Fee: {data['membership_fee']}
+    Donation Fee: {data['donation_fee']}
 
-@app.route('/', methods=['GET', 'POST'])
+    We look forward to seeing you!
+
+    Regards,
+    Kairali Syracuse Team
+    """
+
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+
+    try:
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(from_email, app_password)
+        server.sendmail(from_email, [to_email], msg.as_string())
+        server.quit()
+        print("Email sent successfully!")
+    except Exception as e:
+        print("Error sending email:", e)
+
+# ---------------- ROUTES ---------------- #
+@app.route("/", methods=["GET", "POST"])
 def register():
+    message = ""
+    user = {
+        "email": "",
+        "first_name": "",
+        "last_name": "",
+        "mobile_code": "+91",
+        "mobile_number": "",
+        "whatsapp_code": "+91",
+        "whatsapp_number": "",
+        "family_members": "0",
+        "event_fee": "0",
+        "membership_fee": "0",
+        "donation_fee": "0"
+    }
+
+    if request.method == "POST":
+        data = {
+            "email": request.form["email"],
+            "first_name": request.form["first_name"],
+            "last_name": request.form["last_name"],
+            "mobile_code": request.form["mobile_code"],
+            "mobile_number": request.form["mobile_number"],
+            "whatsapp_code": request.form["whatsapp_code"],
+            "whatsapp_number": request.form["whatsapp_number"] or request.form["mobile_number"],
+            "family_members": request.form.get("family_members", "0"),
+            "event_fee": request.form.get("event_fee", "0"),
+            "membership_fee": request.form.get("membership_fee", "0"),
+            "donation_fee": request.form.get("donation_fee", "0")
+        }
+
+        # Save to Google Sheet
+        sheet.append_row(list(data.values()))
+
+        # Send confirmation email
+        send_email(data["email"], data)
+
+        # Show success message
+        message = f"Registration successful for {data['first_name']} {data['last_name']}! You can fill the form for the next person."
+
+    return render_template("form.html", user=user, message=message)
+
+@app.route("/get_emails", methods=["GET"])
+def get_emails():
+    users = get_all_users()
+    emails = [u[0] for u in users if len(u) > 0 and u[0]]
+    return jsonify(emails)
+
+@app.route("/get_user", methods=["GET"])
+def get_user():
+    email = request.args.get("email")
+    mobile = request.args.get("mobile")
+    users = get_all_users()
     user_data = {}
-    message = None
 
-    if request.method == 'POST':
-        email = request.form['email']
-        mobile_code = request.form.get('mobile_code', '')
-        mobile_number = request.form.get('mobile_number', '')
-        whatsapp_code = request.form.get('whatsapp_code', '')
-        whatsapp_number = request.form.get('whatsapp_number', '')
-        first_name = request.form.get('first_name', '')
-        last_name = request.form.get('last_name', '')
-        family_members = request.form.get('family_members', '')
-        event_fee = request.form.get('event_fee', '')
-        membership_fee = request.form.get('membership_fee', '')
-        donation_fee = request.form.get('donation_fee', '')
+    for u in users:
+        # Assuming columns: email, first_name, last_name, mobile_code, mobile_number, whatsapp_code, whatsapp_number, family_members, event_fee, membership_fee, donation_fee
+        if (email and u[0].lower() == email.lower()) or (mobile and u[3]+u[4] == mobile):
+            user_data = {
+                "email": u[0],
+                "first_name": u[1],
+                "last_name": u[2],
+                "mobile_code": u[3],
+                "mobile_number": u[4],
+                "whatsapp_code": u[5],
+                "whatsapp_number": u[6],
+                "family_members": u[7],
+                "event_fee": u[8],
+                "membership_fee": u[9],
+                "donation_fee": u[10]
+            }
+            break
+    return jsonify(user_data)
 
-        if not first_name and not last_name and not family_members:
-            # Auto lookup
-            user_data = find_user(email, mobile_code+mobile_number, whatsapp_code+whatsapp_number) or {}
-        else:
-            message = register_user(email, mobile_code, mobile_number,
-                                    whatsapp_code, whatsapp_number,
-                                    first_name, last_name, family_members,
-                                    event_fee, membership_fee, donation_fee)
-            user_data = {}
-
-    return render_template('form.html', user=user_data, message=message)
-
-@app.route('/get_user', methods=['GET'])
-def get_user_api():
-    email = request.args.get('email')
-    mobile = request.args.get('mobile')
-    whatsapp = request.args.get('whatsapp')
-    user = find_user(email, mobile, whatsapp)
-    return jsonify(user or {})
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
