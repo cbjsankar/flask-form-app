@@ -4,7 +4,17 @@
     <title>Event Registration Form</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script>
-        // Copy Mobile to WhatsApp if checkbox checked
+        let allEmails = [];
+
+        window.onload = async function() {
+            try {
+                const response = await fetch("/get_emails");
+                allEmails = await response.json();
+            } catch (err) {
+                console.error("Error fetching emails:", err);
+            }
+        }
+
         function copyMobileToWhatsApp() {
             const sameAsMobile = document.getElementById("sameAsMobile");
             const mobileCode = document.querySelector("select[name='mobile_code']");
@@ -18,7 +28,19 @@
             }
         }
 
-        // Auto-populate form based on email OR mobile
+        function showEmailSuggestions(query) {
+            const datalist = document.getElementById("emailSuggestions");
+            datalist.innerHTML = "";
+            if (!query) return;
+
+            const filtered = allEmails.filter(e => e.toLowerCase().startsWith(query.toLowerCase()));
+            filtered.forEach(email => {
+                const option = document.createElement("option");
+                option.value = email;
+                datalist.appendChild(option);
+            });
+        }
+
         async function fetchUserData() {
             const emailField = document.querySelector("input[name='email']");
             const mobileCodeField = document.querySelector("select[name='mobile_code']");
@@ -29,39 +51,22 @@
 
             if (!email && mobileNumberField.value.trim() === "") return;
 
-            let query = "";
-            if (email) {
-                query = `email=${encodeURIComponent(email)}`;
-            } else if (mobileNumberField.value.trim() !== "") {
-                query = `mobile=${encodeURIComponent(mobile)}`;
-            }
-
+            let query = email ? `email=${encodeURIComponent(email)}` : `mobile=${encodeURIComponent(mobile)}`;
             try {
                 const response = await fetch(`/get_user?${query}`);
                 const user = await response.json();
 
                 if (user && Object.keys(user).length > 0) {
-                    // Populate name
                     document.querySelector("input[name='first_name']").value = user.first_name || "";
                     document.querySelector("input[name='last_name']").value = user.last_name || "";
-
-                    // Populate mobile
-                    if (user.mobile_code && user.mobile_number) {
-                        document.querySelector("select[name='mobile_code']").value = user.mobile_code;
-                        document.querySelector("input[name='mobile_number']").value = user.mobile_number;
-                    }
-
-                    // Populate WhatsApp
-                    if (user.whatsapp_code && user.whatsapp_number) {
-                        document.querySelector("select[name='whatsapp_code']").value = user.whatsapp_code;
-                        document.querySelector("input[name='whatsapp_number']").value = user.whatsapp_number;
-                    }
-
-                    // Other fields
-                    document.querySelector("input[name='family_members']").value = user.family_members || "";
-                    document.querySelector("input[name='event_fee']").value = user.event_fee || "";
-                    document.querySelector("input[name='membership_fee']").value = user.membership_fee || "";
-                    document.querySelector("input[name='donation_fee']").value = user.donation_fee || "";
+                    document.querySelector("select[name='mobile_code']").value = user.mobile_code || "+91";
+                    document.querySelector("input[name='mobile_number']").value = user.mobile_number || "";
+                    document.querySelector("select[name='whatsapp_code']").value = user.whatsapp_code || user.mobile_code || "+91";
+                    document.querySelector("input[name='whatsapp_number']").value = user.whatsapp_number || user.mobile_number || "";
+                    document.querySelector("input[name='family_members']").value = user.family_members || "0";
+                    document.querySelector("input[name='event_fee']").value = user.event_fee || "0";
+                    document.querySelector("input[name='membership_fee']").value = user.membership_fee || "0";
+                    document.querySelector("input[name='donation_fee']").value = user.donation_fee || "0";
                 }
             } catch (error) {
                 console.error("Error fetching user:", error);
@@ -70,101 +75,104 @@
     </script>
 </head>
 <body class="bg-light">
-    <div class="container mt-5">
-        <div class="card shadow p-4">
-            <h2 class="mb-4 text-center">Kairali Onam 2025 - Event Registration</h2>
+<div class="container mt-5">
+    <div class="card shadow p-4">
+        <h2 class="mb-4 text-center">Event Registration</h2>
 
-            {% if message %}
-                <div class="alert alert-info">{{ message }}</div>
-            {% endif %}
+        {% if message %}
+            <div class="alert alert-success">{{ message }}</div>
+        {% endif %}
 
-            <form method="POST" action="/">
-                <!-- Email -->
-                <div class="mb-3">
-                    <label class="form-label">Email</label>
-                    <input type="email" class="form-control" name="email"
-                           value="{{ user.email if user else '' }}"
-                           onblur="fetchUserData()" required>
+        <form method="POST" action="/">
+            <!-- Email -->
+            <div class="mb-3">
+                <label class="form-label">Email</label>
+                <input list="emailSuggestions" type="email" class="form-control" name="email"
+                       value="{{ user.email|default('') }}"
+                       oninput="showEmailSuggestions(this.value)" onblur="fetchUserData()" required>
+                <datalist id="emailSuggestions"></datalist>
+            </div>
+
+            <!-- Name -->
+            <div class="row mb-3">
+                <div class="col">
+                    <label class="form-label">First Name</label>
+                    <input type="text" class="form-control" name="first_name" value="{{ user.first_name|default('') }}">
                 </div>
-
-                <!-- Name -->
-                <div class="row mb-3">
-                    <div class="col">
-                        <label class="form-label">First Name</label>
-                        <input type="text" class="form-control" name="first_name" value="{{ user.first_name if user else '' }}">
-                    </div>
-                    <div class="col">
-                        <label class="form-label">Last Name</label>
-                        <input type="text" class="form-control" name="last_name" value="{{ user.last_name if user else '' }}">
-                    </div>
+                <div class="col">
+                    <label class="form-label">Last Name</label>
+                    <input type="text" class="form-control" name="last_name" value="{{ user.last_name|default('') }}">
                 </div>
+            </div>
 
-                <!-- Mobile -->
-                <div class="row mb-3">
-                    <div class="col-3">
-                        <label class="form-label">Mobile Code</label>
-                        <select class="form-select" name="mobile_code" onchange="copyMobileToWhatsApp()" onblur="fetchUserData()">
-                            <option value="+91" {% if user.mobile_code == '+91' %}selected{% endif %}>+91</option>
-                            <option value="+1" {% if user.mobile_code == '+1' %}selected{% endif %}>+1</option>
-                        </select>
-                    </div>
-                    <div class="col-9">
-                        <label class="form-label">Mobile Number</label>
-                        <input type="text" class="form-control" name="mobile_number" maxlength="10"
-                               value="{{ user.mobile_number if user else '' }}"
-                               oninput="copyMobileToWhatsApp()" onblur="fetchUserData()">
-                    </div>
+            <!-- Mobile -->
+            <div class="row mb-3">
+                <div class="col-3">
+                    <label class="form-label">Mobile Code</label>
+                    <select class="form-select" name="mobile_code" onchange="copyMobileToWhatsApp()" onblur="fetchUserData()">
+                        <option value="+91" {% if user.mobile_code|default('+91') == '+91' %}selected{% endif %}>+91</option>
+                        <option value="+1" {% if user.mobile_code|default('+91') == '+1' %}selected{% endif %}>+1</option>
+                    </select>
                 </div>
+                <div class="col-9">
+                    <label class="form-label">Mobile Number</label>
+                    <input type="text" class="form-control" name="mobile_number" maxlength="10"
+                           value="{{ user.mobile_number|default('') }}"
+                           oninput="copyMobileToWhatsApp()" onblur="fetchUserData()">
+                </div>
+            </div>
 
-                <!-- WhatsApp -->
-                <div class="row mb-2">
-                    <div class="col-3">
-                        <label class="form-label">WhatsApp Code</label>
-                        <select class="form-select" name="whatsapp_code">
-                            <option value="+91" {% if user.whatsapp_code == '+91' %}selected{% endif %}>+91</option>
-                            <option value="+1" {% if user.whatsapp_code == '+1' %}selected{% endif %}>+1</option>
-                        </select>
-                    </div>
-                    <div class="col-9">
-                        <label class="form-label">WhatsApp Number</label>
-                        <input type="text" class="form-control" name="whatsapp_number" maxlength="10"
-                               value="{{ user.whatsapp_number if user else '' }}">
-                    </div>
+            <!-- WhatsApp -->
+            <div class="row mb-2">
+                <div class="col-3">
+                    <label class="form-label">WhatsApp Code</label>
+                    <select class="form-select" name="whatsapp_code">
+                        <option value="+91" {% if user.whatsapp_code|default(user.mobile_code|default('+91')) == '+91' %}selected{% endif %}>+91</option>
+                        <option value="+1" {% if user.whatsapp_code|default(user.mobile_code|default('+91')) == '+1' %}selected{% endif %}>+1</option>
+                    </select>
                 </div>
+                <div class="col-9">
+                    <label class="form-label">WhatsApp Number</label>
+                    <input type="text" class="form-control" name="whatsapp_number" maxlength="10"
+                           value="{{ user.whatsapp_number|default(user.mobile_number|default('')) }}">
+                </div>
+            </div>
 
-                <!-- Checkbox -->
-                <div class="form-check mb-3">
-                    <input type="checkbox" class="form-check-input" id="sameAsMobile" onclick="copyMobileToWhatsApp()">
-                    <label class="form-check-label" for="sameAsMobile">Same as Mobile</label>
-                </div>
+            <!-- Checkbox -->
+            <div class="form-check mb-3">
+                <input type="checkbox" class="form-check-input" id="sameAsMobile" onclick="copyMobileToWhatsApp()">
+                <label class="form-check-label" for="sameAsMobile">Same as Mobile</label>
+            </div>
 
-                <!-- Family Members -->
-                <div class="mb-3">
-                    <label class="form-label">Number of Family Members</label>
-                    <input type="number" class="form-control" name="family_members" value="{{ user.family_members if user else '' }}">
-                </div>
+            <!-- Family Members -->
+            <div class="mb-3">
+                <label class="form-label">Number of Family Members</label>
+                <input type="number" class="form-control" name="family_members" value="{{ user.family_members|default('0') }}">
+            </div>
 
-                <!-- Fees -->
-                <div class="row mb-3">
-                    <div class="col">
-                        <label class="form-label">Event Fee ($)</label>
-                        <input type="number" class="form-control" name="event_fee" value="{{ user.event_fee if user else '' }}">
-                    </div>
-                    <div class="col">
-                        <label class="form-label">Membership Fee ($)</label>
-                        <input type="number" class="form-control" name="membership_fee" value="{{ user.membership_fee if user else '' }}">
-                    </div>
-                    <div class="col">
-                        <label class="form-label">Donation Fee ($)</label>
-                        <input type="number" class="form-control" name="donation_fee" value="{{ user.donation_fee if user else '' }}">
-                    </div>
+            <!-- Fees -->
+            <div class="row mb-3">
+                <div class="col">
+                    <label class="form-label">Event Fee ($)</label>
+                    <input type="number" class="form-control" name="event_fee" value="{{ user.event_fee|default('0') }}">
                 </div>
+                <div class="col">
+                    <label class="form-label">Membership Fee ($)</label>
+                    <input type="number" class="form-control" name="membership_fee" value="{{ user.membership_fee|default('0') }}">
+                </div>
+                <div class="col">
+                    <label class="form-label">Donation Fee ($)</label>
+                    <input type="number" class="form-control" name="donation_fee" value="{{ user.donation_fee|default('0') }}">
+                </div>
+            </div>
 
-                <div class="d-grid">
-                    <button type="submit" class="btn btn-primary btn-lg">Submit</button>
-                </div>
-            </form>
-        </div>
+            <!-- Buttons -->
+            <div class="d-flex justify-content-between">
+                <button type="reset" class="btn btn-secondary btn-lg">Clear</button>
+                <button type="submit" class="btn btn-primary btn-lg">Submit</button>
+            </div>
+        </form>
     </div>
+</div>
 </body>
 </html>
