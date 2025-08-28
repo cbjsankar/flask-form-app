@@ -11,7 +11,7 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
           "https://www.googleapis.com/auth/drive"]
 
 # Load credentials from Docker secret file
-with open('/run/secrets/google_sheets_json.json') as f:
+with open('/etc/secrets/google_sheets_json.json') as f:
     credentials_info = json.load(f)
 
 creds = service_account.Credentials.from_service_account_info(credentials_info, scopes=SCOPES)
