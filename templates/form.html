@@ -15,17 +15,11 @@
             }
         }
 
-        function copyMobileToWhatsApp() {
-            const sameAsMobile = document.getElementById("sameAsMobile");
-            const mobileCode = document.querySelector("select[name='mobile_code']");
-            const mobileNumber = document.querySelector("input[name='mobile_number']");
-            const whatsappCode = document.querySelector("select[name='whatsapp_code']");
-            const whatsappNumber = document.querySelector("input[name='whatsapp_number']");
-
-            if (sameAsMobile.checked) {
-                whatsappCode.value = mobileCode.value;
-                whatsappNumber.value = mobileNumber.value;
-            }
+        // Handle email input for suggestions & auto-fetch
+        function handleEmailInput(input) {
+            const email = input.value.trim().toLowerCase();
+            showEmailSuggestions(email);
+            fetchUserData();
         }
 
         function showEmailSuggestions(query) {
@@ -33,7 +27,11 @@
             datalist.innerHTML = "";
             if (!query) return;
 
-            const filtered = allEmails.filter(e => e.toLowerCase().startsWith(query.toLowerCase()));
+            const filtered = allEmails
+                .map(e => e.trim().toLowerCase())
+                .filter(e => e.startsWith(query))
+                .slice(0, 5);
+
             filtered.forEach(email => {
                 const option = document.createElement("option");
                 option.value = email;
@@ -46,7 +44,7 @@
             const mobileCodeField = document.querySelector("select[name='mobile_code']");
             const mobileNumberField = document.querySelector("input[name='mobile_number']");
 
-            const email = emailField.value.trim();
+            const email = emailField.value.trim().toLowerCase();
             const mobile = mobileCodeField.value + mobileNumberField.value.trim();
 
             if (!email && mobileNumberField.value.trim() === "") return;
@@ -67,9 +65,25 @@
                     document.querySelector("input[name='event_fee']").value = user.event_fee || "0";
                     document.querySelector("input[name='membership_fee']").value = user.membership_fee || "0";
                     document.querySelector("input[name='donation_fee']").value = user.donation_fee || "0";
+
+                    // Copy mobile → WhatsApp if checkbox is checked
+                    copyMobileToWhatsApp();
                 }
             } catch (error) {
                 console.error("Error fetching user:", error);
+            }
+        }
+
+        function copyMobileToWhatsApp() {
+            const sameAsMobile = document.getElementById("sameAsMobile");
+            const mobileCode = document.querySelector("select[name='mobile_code']");
+            const mobileNumber = document.querySelector("input[name='mobile_number']");
+            const whatsappCode = document.querySelector("select[name='whatsapp_code']");
+            const whatsappNumber = document.querySelector("input[name='whatsapp_number']");
+
+            if (sameAsMobile.checked) {
+                whatsappCode.value = mobileCode.value;
+                whatsappNumber.value = mobileNumber.value;
             }
         }
     </script>
@@ -83,13 +97,15 @@
             <div class="alert alert-success">{{ message }}</div>
         {% endif %}
 
-        <form method="POST" action="/">
+        <form method="POST" action="/" autocomplete="off">
             <!-- Email -->
             <div class="mb-3">
                 <label class="form-label">Email</label>
                 <input list="emailSuggestions" type="email" class="form-control" name="email"
                        value="{{ user.email|default('') }}"
-                       oninput="showEmailSuggestions(this.value)" onblur="fetchUserData()" required>
+                       autocomplete="off"
+                       oninput="handleEmailInput(this)"
+                       onblur="fetchUserData()" required>
                 <datalist id="emailSuggestions"></datalist>
             </div>
 
@@ -97,11 +113,13 @@
             <div class="row mb-3">
                 <div class="col">
                     <label class="form-label">First Name</label>
-                    <input type="text" class="form-control" name="first_name" value="{{ user.first_name|default('') }}">
+                    <input type="text" class="form-control" name="first_name" autocomplete="off"
+                           value="{{ user.first_name|default('') }}">
                 </div>
                 <div class="col">
                     <label class="form-label">Last Name</label>
-                    <input type="text" class="form-control" name="last_name" value="{{ user.last_name|default('') }}">
+                    <input type="text" class="form-control" name="last_name" autocomplete="off"
+                           value="{{ user.last_name|default('') }}">
                 </div>
             </div>
 
@@ -116,7 +134,7 @@
                 </div>
                 <div class="col-9">
                     <label class="form-label">Mobile Number</label>
-                    <input type="text" class="form-control" name="mobile_number" maxlength="10"
+                    <input type="text" class="form-control" name="mobile_number" maxlength="10" autocomplete="off"
                            value="{{ user.mobile_number|default('') }}"
                            oninput="copyMobileToWhatsApp()" onblur="fetchUserData()">
                 </div>
@@ -133,7 +151,7 @@
                 </div>
                 <div class="col-9">
                     <label class="form-label">WhatsApp Number</label>
-                    <input type="text" class="form-control" name="whatsapp_number" maxlength="10"
+                    <input type="text" class="form-control" name="whatsapp_number" maxlength="10" autocomplete="off"
                            value="{{ user.whatsapp_number|default(user.mobile_number|default('')) }}">
                 </div>
             </div>
@@ -147,28 +165,33 @@
             <!-- Family Members -->
             <div class="mb-3">
                 <label class="form-label">Number of Family Members</label>
-                <input type="number" class="form-control" name="family_members" value="{{ user.family_members|default('0') }}">
+                <input type="number" class="form-control" name="family_members" autocomplete="off"
+                       value="{{ user.family_members|default('0') }}">
             </div>
 
             <!-- Fees -->
             <div class="row mb-3">
                 <div class="col">
                     <label class="form-label">Event Fee ($)</label>
-                    <input type="number" class="form-control" name="event_fee" value="{{ user.event_fee|default('0') }}">
+                    <input type="number" class="form-control" name="event_fee" autocomplete="off"
+                           value="{{ user.event_fee|default('0') }}">
                 </div>
                 <div class="col">
                     <label class="form-label">Membership Fee ($)</label>
-                    <input type="number" class="form-control" name="membership_fee" value="{{ user.membership_fee|default('0') }}">
+                    <input type="number" class="form-control" name="membership_fee" autocomplete="off"
+                           value="{{ user.membership_fee|default('0') }}">
                 </div>
                 <div class="col">
                     <label class="form-label">Donation Fee ($)</label>
-                    <input type="number" class="form-control" name="donation_fee" value="{{ user.donation_fee|default('0') }}">
+                    <input type="number" class="form-control" name="donation_fee" autocomplete="off"
+                           value="{{ user.donation_fee|default('0') }}">
                 </div>
             </div>
 
             <!-- Buttons -->
             <div class="d-flex justify-content-between">
-                <button type="reset" class="btn btn-secondary btn-lg">Clear</button>
+                <button type="reset" class="btn btn-secondary btn-lg"
+                        onclick="document.querySelector('.alert')?.remove()">Clear</button>
                 <button type="submit" class="btn btn-primary btn-lg">Submit</button>
             </div>
         </form>
