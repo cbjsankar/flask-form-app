@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify
 import gspread
 import json
 from google.oauth2 import service_account
-from oauth2client.service_account import ServiceAccountCredentials
 import smtplib
 from email.mime.text import MIMEText
 
@@ -24,8 +23,10 @@ sheet = client.open_by_url(
     "https://docs.google.com/spreadsheets/d/17JO6P0OkcEIH4RCCQLjcNqYsuetw5f0kAfITko629Rc/edit#gid=0"
 ).sheet1
 
+
 def get_all_users():
-    return sheet.get_all_values()[1:]
+    return sheet.get_all_values()[1:]  # skip header
+
 
 # ---------------- EMAIL FUNCTION ---------------- #
 def send_email(to_email, data):
@@ -88,20 +89,21 @@ def register():
 
     if request.method == "POST":
         data = {
-            "email": request.form["email"],
-            "first_name": request.form["first_name"],
-            "last_name": request.form["last_name"],
-            "mobile_code": request.form["mobile_code"],
-            "mobile_number": request.form["mobile_number"],
-            "whatsapp_code": request.form["whatsapp_code"],
-            "whatsapp_number": request.form["whatsapp_number"] or request.form["mobile_number"],
+            "email": request.form.get("email", "").strip().lower(),
+            "first_name": request.form.get("first_name", "").strip(),
+            "last_name": request.form.get("last_name", "").strip(),
+            "mobile_code": request.form.get("mobile_code", "+91"),
+            "mobile_number": request.form.get("mobile_number", "").strip(),
+            "whatsapp_code": request.form.get("whatsapp_code", "+91"),
+            "whatsapp_number": request.form.get("whatsapp_number", "").strip()
+                                or request.form.get("mobile_number", "").strip(),
             "family_members": request.form.get("family_members", "0"),
             "event_fee": request.form.get("event_fee", "0"),
             "membership_fee": request.form.get("membership_fee", "0"),
             "donation_fee": request.form.get("donation_fee", "0")
         }
 
-        # Check if email exists in sheet → update row, else append
+        # Try update → else append
         try:
             cell = sheet.find(data["email"])
             row_number = cell.row
@@ -117,11 +119,25 @@ def register():
             )
             message = f"Registration updated for {data['first_name']} {data['last_name']}!"
         except gspread.exceptions.CellNotFound:
-            sheet.append_row(list(data.values()))
-            message = f"Registration successful for {data['first_name']} {data['last_name']}!"
+            try:
+                sheet.append_row([
+                    data["email"], data["first_name"], data["last_name"],
+                    data["mobile_code"], data["mobile_number"],
+                    data["whatsapp_code"], data["whatsapp_number"],
+                    data["family_members"], data["event_fee"],
+                    data["membership_fee"], data["donation_fee"]
+                ])
+                message = f"Registration successful for {data['first_name']} {data['last_name']}!"
+            except Exception as e:
+                print("Error appending new row:", e)
+                message = "Error saving new registration."
 
         # Send confirmation email
-        send_email(data["email"], data)
+        if data["email"]:
+            send_email(data["email"], data)
+
+        # Keep form prefilled with submitted values
+        user = data
 
     return render_template("form.html", user=user, message=message)
 
@@ -141,7 +157,7 @@ def get_user():
     user_data = {}
 
     for u in users:
-        # Assuming columns: email, first_name, last_name, mobile_code, mobile_number, whatsapp_code, whatsapp_number, family_members, event_fee, membership_fee, donation_fee
+        # Columns: email, first_name, last_name, mobile_code, mobile_number, whatsapp_code, whatsapp_number, family_members, event_fee, membership_fee, donation_fee
         if (email and u[0].lower() == email.lower()) or (mobile and u[3] + u[4] == mobile):
             user_data = {
                 "email": u[0],
