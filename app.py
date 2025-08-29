@@ -6,16 +6,21 @@ from email.mime.text import MIMEText
 
 app = Flask(__name__)
 
-# Google Sheets setup
-SCOPE = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+
+# Load credentials from Docker secret file
+with open('/etc/secrets/google_sheets_json.json') as f:
+    credentials_info = json.load(f)
+
+creds = service_account.Credentials.from_service_account_info(
+    credentials_info, scopes=SCOPES
+)
 client = gspread.authorize(creds)
 
-# Open sheet (replace with your own sheet name or URL)
-sheet = client.open("Kairali Registration").sheet1
+# Open Google Sheet
+sheet = client.open_by_url(
+    "https://docs.google.com/spreadsheets/d/17JO6P0OkcEIH4RCCQLjcNqYsuetw5f0kAfITko629Rc/edit#gid=0"
+).sheet1
 
 # Gmail setup
 SENDER_EMAIL = "your_email@gmail.com"
