@@ -67,6 +67,7 @@ def send_email(to_email, data):
     except Exception as e:
         print("Error sending email:", e)
 
+
 # ---------------- ROUTES ---------------- #
 @app.route("/", methods=["GET", "POST"])
 def register():
@@ -100,22 +101,37 @@ def register():
             "donation_fee": request.form.get("donation_fee", "0")
         }
 
-        # Save to Google Sheet
-        sheet.append_row(list(data.values()))
+        # Check if email exists in sheet → update row, else append
+        try:
+            cell = sheet.find(data["email"])
+            row_number = cell.row
+            sheet.update(
+                f"A{row_number}:K{row_number}",
+                [[
+                    data["email"], data["first_name"], data["last_name"],
+                    data["mobile_code"], data["mobile_number"],
+                    data["whatsapp_code"], data["whatsapp_number"],
+                    data["family_members"], data["event_fee"],
+                    data["membership_fee"], data["donation_fee"]
+                ]]
+            )
+            message = f"Registration updated for {data['first_name']} {data['last_name']}!"
+        except gspread.exceptions.CellNotFound:
+            sheet.append_row(list(data.values()))
+            message = f"Registration successful for {data['first_name']} {data['last_name']}!"
 
         # Send confirmation email
         send_email(data["email"], data)
 
-        # Show success message
-        message = f"Registration successful for {data['first_name']} {data['last_name']}! You can fill the form for the next person."
-
     return render_template("form.html", user=user, message=message)
+
 
 @app.route("/get_emails", methods=["GET"])
 def get_emails():
     users = get_all_users()
     emails = [u[0] for u in users if len(u) > 0 and u[0]]
     return jsonify(emails)
+
 
 @app.route("/get_user", methods=["GET"])
 def get_user():
@@ -126,7 +142,7 @@ def get_user():
 
     for u in users:
         # Assuming columns: email, first_name, last_name, mobile_code, mobile_number, whatsapp_code, whatsapp_number, family_members, event_fee, membership_fee, donation_fee
-        if (email and u[0].lower() == email.lower()) or (mobile and u[3]+u[4] == mobile):
+        if (email and u[0].lower() == email.lower()) or (mobile and u[3] + u[4] == mobile):
             user_data = {
                 "email": u[0],
                 "first_name": u[1],
@@ -142,6 +158,7 @@ def get_user():
             }
             break
     return jsonify(user_data)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
