@@ -39,8 +39,8 @@ def get_all_users():
 
 def send_confirmation_email(to_email, data):
     """Send confirmation email after successful registration"""
-    from_email = "kairalisyr@gmail.com"
-    app_password = "owgg dgjq phip ekwx"  # Replace with Gmail app password
+    SENDER_EMAIL = "kairalisyr@gmail.com"        # replace with your email
+    SENDER_PASSWORD = "owgg dgjq phip ekwx"  # Gmail App Password
 
     subject = "Kairali Onam 2025 - Event Registration Confirmation"
     body = f"""
