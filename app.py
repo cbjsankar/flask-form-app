@@ -8,7 +8,11 @@ from email.mime.text import MIMEText
 
 app = Flask(__name__)
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+# ---------------- GOOGLE SHEETS ---------------- #
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
 # Load credentials from Docker secret file
 with open('/etc/secrets/google_sheets_json.json') as f:
@@ -24,16 +28,43 @@ sheet = client.open_by_url(
     "https://docs.google.com/spreadsheets/d/17JO6P0OkcEIH4RCCQLjcNqYsuetw5f0kAfITko629Rc/edit#gid=0"
 ).sheet1
 
-# Gmail setup
-SENDER_EMAIL = "your_email@gmail.com"
-SENDER_PASSWORD = "your_app_password"
-
-
-def send_confirmation_email(to_email, first_name, last_name):
-    """Send confirmation email after successful registration"""
+# ---------------- UTILITIES ---------------- #
+def get_all_users():
+    """Return all users from the Google Sheet, excluding the header row."""
     try:
-        subject = "Registration Successful - Kairali Syracuse"
-        body = f"Hello {first_name} {last_name},\n\nYour registration was successful!\n\nRegards,\nKairali Syracuse"
+        rows = sheet.get_all_values()
+        return rows[1:] if len(rows) > 1 else []
+    except Exception as e:
+        print("Error fetching users:", e)
+        return []
+
+def send_confirmation_email(to_email, data):
+    """Send confirmation email after successful registration"""
+    SENDER_EMAIL = "your_email@gmail.com"        # replace with your email
+    SENDER_PASSWORD = "your_app_password"        # replace with Gmail app password
+
+    subject = "Kairali Onam 2025 - Event Registration Confirmation"
+    body = f"""
+    Dear {data['first_name']} {data['last_name']},
+
+    Thank you for registering with us! Here are your submitted details:
+
+    Name: {data['first_name']} {data['last_name']}
+    Email: {data['email']}
+    Mobile: {data['mobile_code']} {data['mobile_number']}
+    WhatsApp: {data['whatsapp_code']} {data['whatsapp_number']}
+    Family Members: {data['family_members']}
+    Event Fee: {data['event_fee']}
+    Membership Fee: {data['membership_fee']}
+    Donation Fee: {data['donation_fee']}
+
+    We look forward to seeing you!
+
+    Regards,
+    Kairali Syracuse Team
+    """
+
+    try:
         msg = MIMEText(body)
         msg["Subject"] = subject
         msg["From"] = SENDER_EMAIL
@@ -41,94 +72,113 @@ def send_confirmation_email(to_email, first_name, last_name):
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(SENDER_EMAIL, SENDER_PASSWORD)
-            server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+            server.sendmail(SENDER_EMAIL, [to_email], msg.as_string())
         print(f"✅ Email sent to {to_email}")
     except Exception as e:
         print("❌ Email sending failed:", e)
 
-
-@app.route("/")
+# ---------------- ROUTES ---------------- #
+@app.route("/", methods=["GET"])
 def index():
-    return render_template("form.html")
+    # Default empty user dict for form rendering
+    user = {
+        "email": "",
+        "first_name": "",
+        "last_name": "",
+        "mobile_code": "+91",
+        "mobile_number": "",
+        "whatsapp_code": "+91",
+        "whatsapp_number": "",
+        "family_members": "0",
+        "event_fee": "0",
+        "membership_fee": "0",
+        "donation_fee": "0"
+    }
+    return render_template("form.html", user=user)
 
-
-@app.route("/get_emails")
+@app.route("/get_emails", methods=["GET"])
 def get_emails():
-    """Return all emails from sheet for auto-complete"""
-    try:
-        emails = sheet.col_values(1)[1:]  # skip header row
-        return jsonify(emails)
-    except Exception as e:
-        print("Error fetching emails:", e)
-        return jsonify([])
+    users = get_all_users()
+    emails = [u[0] for u in users if len(u) > 0 and u[0]]
+    return jsonify(emails)
 
-
-@app.route("/get_user")
+@app.route("/get_user", methods=["GET"])
 def get_user():
-    """Fetch user data by email"""
-    email = request.args.get("email", "").strip()
-    if not email:
-        return jsonify([])
+    email = request.args.get("email")
+    mobile = request.args.get("mobile")
+    users = get_all_users()
+    user_data = {}
 
-    try:
-        cell = sheet.find(email)
-        row = sheet.row_values(cell.row)
-        return jsonify(row)
-    except Exception:
-        # If not found, just return empty
-        return jsonify([])
-
+    for u in users:
+        # Columns: email, first_name, last_name, mobile_code, mobile_number,
+        # whatsapp_code, whatsapp_number, family_members, event_fee, membership_fee, donation_fee
+        if (email and u[0].lower() == email.lower()) or (mobile and u[3] + u[4] == mobile):
+            user_data = {
+                "email": u[0],
+                "first_name": u[1],
+                "last_name": u[2],
+                "mobile_code": u[3],
+                "mobile_number": u[4],
+                "whatsapp_code": u[5],
+                "whatsapp_number": u[6],
+                "family_members": u[7],
+                "event_fee": u[8],
+                "membership_fee": u[9],
+                "donation_fee": u[10]
+            }
+            break
+    return jsonify(user_data)
 
 @app.route("/submit", methods=["POST"])
 def submit():
-    """Handle form submission"""
     data = request.form.to_dict()
     print("📥 Received form data:", data)
 
+    message = ""
+
     try:
-        # Try updating existing user
+        # Check if email exists
         cell = sheet.find(data["email"])
+        # Update existing row
         sheet.update(
-            f"A{cell.row}:K{cell.row}", [[
-                data.get("email", ""), data.get("first_name", ""), data.get("last_name", ""),
-                data.get("mobile_code", ""), data.get("mobile_number", ""),
-                data.get("whatsapp_code", ""), data.get("whatsapp_number", ""),
-                data.get("family_members", ""), data.get("event_fee", ""),
-                data.get("membership_fee", ""), data.get("donation_fee", "")
+            f"A{cell.row}:K{cell.row}",
+            [[
+                data["email"], data["first_name"], data["last_name"],
+                data["mobile_code"], data["mobile_number"],
+                data["whatsapp_code"], data["whatsapp_number"],
+                data["family_members"], data["event_fee"],
+                data["membership_fee"], data["donation_fee"]
             ]]
         )
-        message = f"Updated existing entry for {data['first_name']} {data['last_name']}!"
-        print("✅ Updated row:", cell.row)
+        message = f"Registration updated for {data['first_name']} {data['last_name']}!"
+        print("✅ Updated existing row:", cell.row)
 
-    except Exception:  # Not found → append new row
-        try:
-            headers = sheet.row_values(1)
-            row_data = [
-                data.get("email", ""), data.get("first_name", ""), data.get("last_name", ""),
-                data.get("mobile_code", ""), data.get("mobile_number", ""),
-                data.get("whatsapp_code", ""), data.get("whatsapp_number", ""),
-                data.get("family_members", ""), data.get("event_fee", ""),
-                data.get("membership_fee", ""), data.get("donation_fee", "")
-            ]
+    except gspread.exceptions.GSpreadException:
+        # Append new row if email not found
+        headers = sheet.row_values(1)
+        row_data = [
+            data["email"], data["first_name"], data["last_name"],
+            data["mobile_code"], data["mobile_number"],
+            data["whatsapp_code"], data["whatsapp_number"],
+            data["family_members"], data["event_fee"],
+            data["membership_fee"], data["donation_fee"]
+        ]
 
-            if len(row_data) < len(headers):
-                row_data.extend([""] * (len(headers) - len(row_data)))
-            elif len(row_data) > len(headers):
-                row_data = row_data[:len(headers)]
+        # Adjust length to match headers
+        if len(row_data) < len(headers):
+            row_data.extend([""] * (len(headers) - len(row_data)))
+        elif len(row_data) > len(headers):
+            row_data = row_data[:len(headers)]
 
-            print("📝 Appending new row:", row_data)
-            sheet.append_row(row_data)
-            message = f"Registration successful for {data['first_name']} {data['last_name']}!"
-            print("✅ New row added successfully")
+        sheet.append_row(row_data)
+        message = f"Registration successful for {data['first_name']} {data['last_name']}!"
+        print("✅ New row added:", row_data)
 
-            send_confirmation_email(data["email"], data["first_name"], data["last_name"])
+        # Send confirmation email
+        send_confirmation_email(data["email"], data)
 
-        except Exception as e:
-            print("❌ Error appending new row:", e)
-            message = "Error saving new registration."
+    return render_template("form.html", user=data, message=message)
 
-    return render_template("form.html", message=message)
-
-
+# ---------------- RUN APP ---------------- #
 if __name__ == "__main__":
     app.run(debug=True)
