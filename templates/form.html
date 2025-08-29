@@ -66,6 +66,7 @@
                     document.querySelector("input[name='membership_fee']").value = user.membership_fee || "0";
                     document.querySelector("input[name='donation_fee']").value = user.donation_fee || "0";
 
+                    // Copy mobile → WhatsApp if checkbox is checked
                     copyMobileToWhatsApp();
                 }
             } catch (error) {
@@ -86,19 +87,25 @@
             }
         }
 
+        // Clear all fields
         function clearForm() {
-            // Clear all text, email, and number inputs
-            document.querySelectorAll("input[type='text'], input[type='email'], input[type='number']").forEach(el => el.value = "");
+            const form = document.getElementById("regForm");
+            form.reset();
 
-            // Reset select fields
-            document.querySelector("select[name='mobile_code']").value = "+91";
-            document.querySelector("select[name='whatsapp_code']").value = "+91";
+            const userFields = ["first_name","last_name","mobile_code","mobile_number",
+                                "whatsapp_code","whatsapp_number","family_members",
+                                "event_fee","membership_fee","donation_fee"];
+            userFields.forEach(f => {
+                const field = document.querySelector(`[name='${f}']`);
+                if(field) {
+                    if(f.endsWith("_code")) field.value = "+91";
+                    else if(f === "family_members" || f.endsWith("fee")) field.value = "0";
+                    else field.value = "";
+                }
+            });
 
-            // Uncheck checkbox
             document.getElementById("sameAsMobile").checked = false;
-
-            // Remove alert message
-            document.querySelector('.alert')?.remove();
+            document.querySelector(".alert")?.remove();
         }
     </script>
 </head>
@@ -111,7 +118,7 @@
             <div class="alert alert-success">{{ message }}</div>
         {% endif %}
 
-        <form id="regForm" method="POST" action="/" autocomplete="off">
+        <form id="regForm" method="POST" action="/submit" autocomplete="off">
             <!-- Email -->
             <div class="mb-3">
                 <label class="form-label">Email</label>
