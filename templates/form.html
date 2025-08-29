@@ -66,7 +66,6 @@
                     document.querySelector("input[name='membership_fee']").value = user.membership_fee || "0";
                     document.querySelector("input[name='donation_fee']").value = user.donation_fee || "0";
 
-                    // Copy mobile → WhatsApp if checkbox is checked
                     copyMobileToWhatsApp();
                 }
             } catch (error) {
@@ -87,24 +86,23 @@
             }
         }
 
-        // Clear all fields
         function clearForm() {
-            const form = document.getElementById("regForm");
+            const form = document.querySelector("form");
             form.reset();
 
-            const userFields = ["first_name","last_name","mobile_code","mobile_number",
-                                "whatsapp_code","whatsapp_number","family_members",
-                                "event_fee","membership_fee","donation_fee"];
-            userFields.forEach(f => {
-                const field = document.querySelector(`[name='${f}']`);
-                if(field) {
-                    if(f.endsWith("_code")) field.value = "+91";
-                    else if(f === "family_members" || f.endsWith("fee")) field.value = "0";
-                    else field.value = "";
-                }
-            });
+            // Clear all manually populated fields
+            document.querySelector("input[name='email']").value = "";
+            document.querySelector("input[name='first_name']").value = "";
+            document.querySelector("input[name='last_name']").value = "";
+            document.querySelector("select[name='mobile_code']").value = "+91";
+            document.querySelector("input[name='mobile_number']").value = "";
+            document.querySelector("select[name='whatsapp_code']").value = "+91";
+            document.querySelector("input[name='whatsapp_number']").value = "";
+            document.querySelector("input[name='family_members']").value = "0";
+            document.querySelector("input[name='event_fee']").value = "0";
+            document.querySelector("input[name='membership_fee']").value = "0";
+            document.querySelector("input[name='donation_fee']").value = "0";
 
-            document.getElementById("sameAsMobile").checked = false;
             document.querySelector(".alert")?.remove();
         }
     </script>
@@ -118,7 +116,7 @@
             <div class="alert alert-success">{{ message }}</div>
         {% endif %}
 
-        <form id="regForm" method="POST" action="/submit" autocomplete="off">
+        <form method="POST" action="/submit" autocomplete="off">
             <!-- Email -->
             <div class="mb-3">
                 <label class="form-label">Email</label>
