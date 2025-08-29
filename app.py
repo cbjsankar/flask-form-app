@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import gspread
 from google.oauth2.service_account import Credentials
-from gspread.exceptions import CellNotFound
 import smtplib
 from email.mime.text import MIMEText
 
@@ -15,10 +14,10 @@ SCOPE = [
 creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
 client = gspread.authorize(creds)
 
-# Open sheet (replace with your own name or URL)
+# Open sheet (replace with your own sheet name or URL)
 sheet = client.open("Kairali Registration").sheet1
 
-# Gmail setup (replace with your email + app password)
+# Gmail setup
 SENDER_EMAIL = "your_email@gmail.com"
 SENDER_PASSWORD = "your_app_password"
 
@@ -50,7 +49,7 @@ def index():
 def get_emails():
     """Return all emails from sheet for auto-complete"""
     try:
-        emails = sheet.col_values(1)[1:]  # skip header
+        emails = sheet.col_values(1)[1:]  # skip header row
         return jsonify(emails)
     except Exception as e:
         print("Error fetching emails:", e)
@@ -68,10 +67,8 @@ def get_user():
         cell = sheet.find(email)
         row = sheet.row_values(cell.row)
         return jsonify(row)
-    except CellNotFound:
-        return jsonify([])
-    except Exception as e:
-        print("Error fetching user:", e)
+    except Exception:
+        # If not found, just return empty
         return jsonify([])
 
 
@@ -82,7 +79,7 @@ def submit():
     print("📥 Received form data:", data)
 
     try:
-        # Check if email already exists
+        # Try updating existing user
         cell = sheet.find(data["email"])
         sheet.update(
             f"A{cell.row}:K{cell.row}", [[
@@ -96,9 +93,8 @@ def submit():
         message = f"Updated existing entry for {data['first_name']} {data['last_name']}!"
         print("✅ Updated row:", cell.row)
 
-    except CellNotFound:
+    except Exception:  # Not found → append new row
         try:
-            # Append new user
             headers = sheet.row_values(1)
             row_data = [
                 data.get("email", ""), data.get("first_name", ""), data.get("last_name", ""),
@@ -108,7 +104,6 @@ def submit():
                 data.get("membership_fee", ""), data.get("donation_fee", "")
             ]
 
-            # Adjust row to match header length
             if len(row_data) < len(headers):
                 row_data.extend([""] * (len(headers) - len(row_data)))
             elif len(row_data) > len(headers):
@@ -119,7 +114,6 @@ def submit():
             message = f"Registration successful for {data['first_name']} {data['last_name']}!"
             print("✅ New row added successfully")
 
-            # Send confirmation email
             send_confirmation_email(data["email"], data["first_name"], data["last_name"])
 
         except Exception as e:
