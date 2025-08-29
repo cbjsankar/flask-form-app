@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify
 import gspread
 import json
 from google.oauth2 import service_account
-from google.oauth2.service_account import Credentials
 import smtplib
 from email.mime.text import MIMEText
 
@@ -38,32 +37,31 @@ def get_all_users():
         print("Error fetching users:", e)
         return []
 
-# ---------------- EMAIL FUNCTION ---------------- #
-def send_email(to_email, data):
+def send_confirmation_email(to_email, data):
+    """Send confirmation email after successful registration"""
     from_email = "kairalisyr@gmail.com"
     app_password = "owgg dgjq phip ekwx"  # Replace with Gmail app password
 
     subject = "Kairali Onam 2025 - Event Registration Confirmation"
     body = f"""
-    Dear {data['first_name']} {data['last_name']},
+Dear {data['first_name']} {data['last_name']},
 
-    Thank you for registering with us! Here are your submitted details:
+Thank you for registering with us! Here are your submitted details:
 
-    Name: {data['first_name']} {data['last_name']}
-    Email: {data['email']}
-    Mobile: {data['mobile_code']} {data['mobile_number']}
-    WhatsApp: {data['whatsapp_code']} {data['whatsapp_number']}
-    Family Members: {data['family_members']}
-    Event Fee: {data['event_fee']}
-    Membership Fee: {data['membership_fee']}
-    Donation Fee: {data['donation_fee']}
+Name: {data['first_name']} {data['last_name']}
+Email: {data['email']}
+Mobile: {data['mobile_code']} {data['mobile_number']}
+WhatsApp: {data['whatsapp_code']} {data['whatsapp_number']}
+Family Members: {data['family_members']}
+Event Fee: {data['event_fee']}
+Membership Fee: {data['membership_fee']}
+Donation Fee: {data['donation_fee']}
 
-    We look forward to seeing you!
+We look forward to seeing you!
 
-    Regards,
-    Kairali Syracuse Team
-    """
-
+Regards,
+Kairali Syracuse Team
+"""
     try:
         msg = MIMEText(body)
         msg["Subject"] = subject
@@ -80,7 +78,6 @@ def send_email(to_email, data):
 # ---------------- ROUTES ---------------- #
 @app.route("/", methods=["GET"])
 def index():
-    # Default empty user dict for form rendering
     user = {
         "email": "",
         "first_name": "",
