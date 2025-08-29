@@ -8,7 +8,10 @@ from email.mime.text import MIMEText
 app = Flask(__name__)
 
 # Google Sheets setup
-SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+SCOPE = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 creds = Credentials.from_service_account_file("credentials.json", scopes=SCOPE)
 client = gspread.authorize(creds)
 
@@ -18,6 +21,7 @@ sheet = client.open("Kairali Registration").sheet1
 # Gmail setup (replace with your email + app password)
 SENDER_EMAIL = "your_email@gmail.com"
 SENDER_PASSWORD = "your_app_password"
+
 
 def send_confirmation_email(to_email, first_name, last_name):
     """Send confirmation email after successful registration"""
@@ -45,14 +49,21 @@ def index():
 @app.route("/get_emails")
 def get_emails():
     """Return all emails from sheet for auto-complete"""
-    emails = sheet.col_values(1)  # assuming email is column 1
-    return jsonify(emails)
+    try:
+        emails = sheet.col_values(1)[1:]  # skip header
+        return jsonify(emails)
+    except Exception as e:
+        print("Error fetching emails:", e)
+        return jsonify([])
 
 
 @app.route("/get_user")
 def get_user():
     """Fetch user data by email"""
-    email = request.args.get("email")
+    email = request.args.get("email", "").strip()
+    if not email:
+        return jsonify([])
+
     try:
         cell = sheet.find(email)
         row = sheet.row_values(cell.row)
@@ -71,16 +82,15 @@ def submit():
     print("📥 Received form data:", data)
 
     try:
-        # Try to find if email already exists
+        # Check if email already exists
         cell = sheet.find(data["email"])
         sheet.update(
-            f"A{cell.row}:K{cell.row}",
-            [[
-                data["email"], data["first_name"], data["last_name"],
-                data["mobile_code"], data["mobile_number"],
-                data["whatsapp_code"], data["whatsapp_number"],
-                data["family_members"], data["event_fee"],
-                data["membership_fee"], data["donation_fee"]
+            f"A{cell.row}:K{cell.row}", [[
+                data.get("email", ""), data.get("first_name", ""), data.get("last_name", ""),
+                data.get("mobile_code", ""), data.get("mobile_number", ""),
+                data.get("whatsapp_code", ""), data.get("whatsapp_number", ""),
+                data.get("family_members", ""), data.get("event_fee", ""),
+                data.get("membership_fee", ""), data.get("donation_fee", "")
             ]]
         )
         message = f"Updated existing entry for {data['first_name']} {data['last_name']}!"
@@ -88,30 +98,28 @@ def submit():
 
     except CellNotFound:
         try:
-            # Get headers length to align properly
+            # Append new user
             headers = sheet.row_values(1)
             row_data = [
-                data["email"], data["first_name"], data["last_name"],
-                data["mobile_code"], data["mobile_number"],
-                data["whatsapp_code"], data["whatsapp_number"],
-                data["family_members"], data["event_fee"],
-                data["membership_fee"], data["donation_fee"]
+                data.get("email", ""), data.get("first_name", ""), data.get("last_name", ""),
+                data.get("mobile_code", ""), data.get("mobile_number", ""),
+                data.get("whatsapp_code", ""), data.get("whatsapp_number", ""),
+                data.get("family_members", ""), data.get("event_fee", ""),
+                data.get("membership_fee", ""), data.get("donation_fee", "")
             ]
 
-            # Adjust row length to match sheet columns
+            # Adjust row to match header length
             if len(row_data) < len(headers):
                 row_data.extend([""] * (len(headers) - len(row_data)))
             elif len(row_data) > len(headers):
                 row_data = row_data[:len(headers)]
 
             print("📝 Appending new row:", row_data)
-            print("Header length:", len(headers), "Row length:", len(row_data))
-
             sheet.append_row(row_data)
             message = f"Registration successful for {data['first_name']} {data['last_name']}!"
             print("✅ New row added successfully")
 
-            # Send email
+            # Send confirmation email
             send_confirmation_email(data["email"], data["first_name"], data["last_name"])
 
         except Exception as e:
