@@ -15,7 +15,6 @@
             }
         }
 
-        // Handle email input for suggestions & auto-fetch
         function handleEmailInput(input) {
             const email = input.value.trim().toLowerCase();
             showEmailSuggestions(email);
@@ -55,18 +54,17 @@
                 const user = await response.json();
 
                 if (user && Object.keys(user).length > 0) {
-                    document.querySelector("input[name='first_name']").value = user.first_name || "";
-                    document.querySelector("input[name='last_name']").value = user.last_name || "";
-                    document.querySelector("select[name='mobile_code']").value = user.mobile_code || "+91";
-                    document.querySelector("input[name='mobile_number']").value = user.mobile_number || "";
-                    document.querySelector("select[name='whatsapp_code']").value = user.whatsapp_code || user.mobile_code || "+91";
-                    document.querySelector("input[name='whatsapp_number']").value = user.whatsapp_number || user.mobile_number || "";
-                    document.querySelector("input[name='family_members']").value = user.family_members || "0";
-                    document.querySelector("input[name='event_fee']").value = user.event_fee || "0";
-                    document.querySelector("input[name='membership_fee']").value = user.membership_fee || "0";
-                    document.querySelector("input[name='donation_fee']").value = user.donation_fee || "0";
+                    document.querySelector("input[name='first_name']").value = user[1] || "";
+                    document.querySelector("input[name='last_name']").value = user[2] || "";
+                    document.querySelector("select[name='mobile_code']").value = user[3] || "+91";
+                    document.querySelector("input[name='mobile_number']").value = user[4] || "";
+                    document.querySelector("select[name='whatsapp_code']").value = user[5] || user[3] || "+91";
+                    document.querySelector("input[name='whatsapp_number']").value = user[6] || user[4] || "";
+                    document.querySelector("input[name='family_members']").value = user[7] || "0";
+                    document.querySelector("input[name='event_fee']").value = user[8] || "0";
+                    document.querySelector("input[name='membership_fee']").value = user[9] || "0";
+                    document.querySelector("input[name='donation_fee']").value = user[10] || "0";
 
-                    // Copy mobile → WhatsApp if checkbox is checked
                     copyMobileToWhatsApp();
                 }
             } catch (error) {
@@ -91,13 +89,13 @@
 <body class="bg-light">
 <div class="container mt-5">
     <div class="card shadow p-4">
-        <h2 class="mb-4 text-center">Kairali Onam 2025 - Event Registration</h2>
+        <h2 class="mb-4 text-center">Event Registration</h2>
 
         {% if message %}
             <div class="alert alert-success">{{ message }}</div>
         {% endif %}
 
-        <form method="POST" action="/" autocomplete="off">
+        <form method="POST" action="/submit" autocomplete="off">
             <!-- Email -->
             <div class="mb-3">
                 <label class="form-label">Email</label>
